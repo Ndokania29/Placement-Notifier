@@ -10,9 +10,7 @@
 
 **Automate your placement journey with AI-powered email analysis, instant notifications, and smart calendar management!**
 
-[![GitHub stars](https://img.shields.io/github/stars/Ndokania29/placement-notifier?style=social)](https://github.com/Ndokania29/placement-notifier)
-[![GitHub forks](https://img.shields.io/github/forks/Ndokania29/placement-notifier?style=social)](https://github.com/Ndokania29/placement-notifier)
-[![GitHub issues](https://imghub.com/Ndokania29/placement-notifier/issues)](https://github.com/Ndokania29/placement-notifier/issues)
+
 
 </div>
 
@@ -112,26 +110,14 @@ This intelligent automation system transforms your placement email management fr
 Edit the Telegram notification nodes to personalize your messages and add your own branding.
 
 ---
+## 📊 Workflow Architecture  
 
-## 📊 **How It Works**
+<div align="center">
 
-```mermaid
-graph TD
-    A[Gmail Trigger] --> B[Fetch Full Email]
-    B --> C[Clean Email Text]
-    C --> D[Gemini AI Analysis]
-    D --> E[Parse AI Response]
-    E --> F[Classify Intent]
-    F --> G{Intent Type?}
-    G -->|Placement| H[Send Placement Alert]
-    G -->|PPT| I[Send PPT Notification]
-    G -->|Shortlist| J[Send Shortlist Update]
-    G -->|Other| K[Log for Review]
-    H --> L[Create Calendar Event]
-    I --> L
-    J --> L
-    L --> M[Set Reminders]
-```
+<img src="images/workflow-diagram.png" alt="Workflow Diagram" width="80%"/>
+
+</div>
+
 
 ---
 
