@@ -1,0 +1,636 @@
+{
+  "name": "Placement Notifier",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "a4efa45a-d9f4-4d3e-85eb-04fbea699d5d",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        64
+      ],
+      "alwaysOutputData": false,
+      "notesInFlow": false,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent\n",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"You are an expert email analysis assistant. Your task is to analyze the email text and return a single, clean JSON object.\\n\\nFirst, determine the email's primary intent from this list: ['Placement', 'PPT', 'Shortlist', 'Other'].\\n\\nThen, construct a JSON object with the following fields, using your intent classification and extracting the other details from the text:\\n- intent: Your classification from the step above.\\n- company: The name of the company.\\n- last_date_to_apply: The registration/application deadline date in YYYY-MM-DD format.\\n- last_time_to_apply: The registration/application deadline time in HH:MM AM/PM format.\\n- event_type: Classify the main event as either 'Application' or 'ppt' or'Test' or 'Interview'.\\n- event_date: The date of the main event (test or interview) in YYYY-MM-DD format.\\n- event_time: The time of the main event (test or interview) in HH:MM AM/PM format.\\n- urgency: 'High', 'Medium', or 'Low' based on the dates.\\n- summary: A one-sentence summary of the email's purpose.\\n- shortlist_type: If the intent is 'Shortlist', specify 'Test', 'Interview', or 'Final Selection'.\\n\\nDo not include any explanations or text outside the JSON object. If a value is not found, use null.\\n\\nEmail text:\\n\" + $json[\"text\"]\n        }\n      ]\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "8cc1bc32-d047-4b10-8796-9069e9753849",
+      "name": "Gemini AI (Extract Info)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        144,
+        16
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GEMINI_API_CREDENTIAL_ID",
+          "name": "geminiApi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiResponse = $json.candidates[0].content.parts[0].text;\nconst cleanedResponse = geminiResponse.replace(/```json\\n|```/g, '').trim();\n\ntry {\n  const parsedData = JSON.parse(cleanedResponse);\n  return { json: parsedData };\n} catch (error) {\n  console.error('Error parsing JSON:', error, 'Original response:', cleanedResponse);\n  return { json: { error: 'Failed to parse Gemini response', original: cleanedResponse } };\n}\n"
+      },
+      "id": "d5d2afcd-c9c9-4c8f-a99c-2762fecf0f12",
+      "name": "Parse Gemini Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json[\"intent\"]}}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "Placement"
+            },
+            {
+              "value2": "PPT"
+            },
+            {
+              "value2": "Shortlist"
+            },
+            {
+              "value2": "Other"
+            }
+          ]
+        }
+      },
+      "id": "08b0dd41-f2a3-4c8e-bc3c-106e90e04806",
+      "name": "Switch (by Intent)1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [
+        592,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🚨 *New Placement Alert!* 🚨  \n\n*Company:* {{ $json.company || \"N/A\" }}  \n*Deadline:* {{ $json.last_date_to_apply || \"N/A\" }} at {{ $json.last_time_to_apply || \"N/A\" }}  \n*Test Date:* {{ $json.event_date || \"N/A\" }}  \n*Test Time:* {{ $json.event_time || \"N/A\" }}  \n*Interview Date:* {{ $json.interview_date || \"N/A\" }}  \n*Interview Time:* {{ $json.interview_time || \"N/A\" }}  \n*Urgency:* {{ $json.urgency || \"Low\" }}  \n\n*Summary:* {{ $json.summary || \"No summary available\" }}  \n\n✅ Email labeled & Calendar events created.\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        -368
+      ],
+      "id": "a0ae8072-0243-43ed-bd73-aa5ab451f614",
+      "name": "Notify: New Placement (Telegram)",
+      "webhookId": "YOUR_WEBHOOK_ID",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=ℹ️ *Pre-Placement Talk / PPT Scheduled* ℹ️\n\n*Company:* {{ company || \"N/A\" }}\n*PPT Date:* {{ event_date || \"N/A\" }}\n*PPT Time:* {{ event_time || \"N/A\" }}\n*Summary:* {{ summary || \"No summary available\" }}\n\n✅ Email labeled & Calendar events created.\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        -192
+      ],
+      "id": "01c4b8f4-2ef5-4975-92f7-af2da4f6958c",
+      "name": "PPT Notification",
+      "webhookId": "YOUR_WEBHOOK_ID",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=✅ The shortlist for *Meesho* is out.  \n\nThe test will be conducted on *2025-07-23* at *07:00 PM*.  \n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        -16
+      ],
+      "id": "2c66949e-b34a-4411-9399-8f13b53be78f",
+      "name": "Shortlist Notification – Success",
+      "webhookId": "YOUR_WEBHOOK_ID",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=❌ The shortlist for *{{ $node[\"Parse Gemini Response\"].json.json.company }}* is out.\n\nYour name was not found in the list.\n",
+        "additionalFields": {
+          "parse_mode": "MarkdownV2"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2928,
+        928
+      ],
+      "id": "01432427-2010-4cac-bf71-f0b8a013b1c2",
+      "name": "Shortlist Notification – Success1",
+      "webhookId": "YOUR_WEBHOOK_ID",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Return full JSON so we can see exact structure\nreturn items;\n"
+      },
+      "id": "2196bd19-4d8e-4c8e-a284-bd7227faab48",
+      "name": "Check for Name in Excel2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.shortlist}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "85238306-89ac-43f6-92c7-abc7f7356ede",
+      "name": "If Name Found?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2688,
+        848
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a8df3a91-f9b9-43b7-bfae-fef6e76d7c75",
+      "name": "Log Other1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        944,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{$json[\"id\"]}}?format=full",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        64
+      ],
+      "id": "ae0165ed-983e-4a52-a2bb-f49835db0720",
+      "name": "HTTP Request",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = items[0].json;\n\n// Decode Gmail Base64 + Quoted-Printable\nfunction decodeBase64QP(input) {\n  let b64 = input.replace(/-/g, '+').replace(/_/g, '/');\n  let buf = Buffer.from(b64, 'base64').toString('utf8');\n  buf = buf.replace(/=\\r?\\n/g, \"\"); // remove soft line breaks\n  buf = buf.replace(/=([A-Fa-f0-9]{2})/g, (_, hex) =>\n    String.fromCharCode(parseInt(hex, 16))\n  );\n  return buf;\n}\n\n// Extract text from nested parts\nfunction extractParts(parts) {\n  for (const part of parts) {\n    if ((part.mimeType === \"text/plain\" || part.mimeType === \"text/html\") \n        && part.body?.data) {\n      return decodeBase64QP(part.body.data);\n    }\n    if (part.parts) {\n      const inner = extractParts(part.parts);\n      if (inner) return inner;\n    }\n  }\n  return null;\n}\n\n// Clean extracted email text\nfunction cleanEmailText(rawText) {\n  let text = rawText;\n\n  // Remove forwarded/reply headers\n  text = text.replace(/---------- Forwarded message ---------|On .* wrote:|From:.*|To:.*|Date:.*|Subject:.*/gi, \"\");\n\n  // Remove common disclaimers\n  text = text.replace(/Disclaimer:.*$/gis, \"\");\n  text = text.replace(/This message was sent from.*$/gis, \"\");\n\n  // Remove multiple line breaks\n  text = text.replace(/\\n\\s*\\n\\s*\\n+\\r/g, \" \");\n  text = text.replace(/\\r\\n\\r\\n/g, \" \");\n\n  // Trim\n  return text.trim();\n}\n\n// Main Logic\nlet body = \"\";\nif (message.payload) {\n  if (message.payload.body?.data) {\n    body = decodeBase64QP(message.payload.body.data);\n  } else if (message.payload.parts) {\n    body = extractParts(message.payload.parts) || \"\";\n  }\n}\n\nconst cleaned = cleanEmailText(body || \"No body found\");\n\nreturn [{ json: { text: cleaned } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        128
+      ],
+      "id": "a3cc31d5-1ad9-4160-9c8a-90c29584870a",
+      "name": "Email Body+Cleaning"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.last_date_to_apply }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "85fd22b9-614a-4777-b8ec-bedab3112740",
+      "name": "If Deadline Exists1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        944,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.test_date != null || $json.interview_date != null }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "32e0ca57-0afc-4f11-a7e3-c626bf844c15",
+      "name": "If Test/Interview Date Exists1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        944,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_EMAIL@gmail.com",
+          "mode": "list",
+          "cachedResultName": "YOUR_EMAIL@gmail.com"
+        },
+        "start": "={{ $json.startDateTime }}",
+        "end": "={{ $json.endDateTime }}",
+        "useDefaultReminders": false,
+        "additionalFields": {
+          "color": "7",
+          "description": "={{ $json.summary }}",
+          "showMeAs": "opaque",
+          "summary": "={{ $json.title }}"
+        },
+        "remindersUi": {
+          "remindersValues": [
+            {
+              "method": "popup",
+              "minutes": 10
+            },
+            {
+              "method": "popup",
+              "minutes": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1520,
+        288
+      ],
+      "id": "94f1695c-6027-4b51-909e-a93597b818a6",
+      "name": "Test/Interview",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_GOOGLE_CALENDAR_CREDENTIAL_ID",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_EMAIL@gmail.com",
+          "mode": "list",
+          "cachedResultName": "YOUR_EMAIL@gmail.com"
+        },
+        "start": "={{ $json.startDateTime }}",
+        "end": "={{ $json.endDateTime }}",
+        "useDefaultReminders": false,
+        "additionalFields": {
+          "color": "11",
+          "description": "={{ $json.summary }}",
+          "location": "",
+          "summary": "={{ $json.title }}"
+        },
+        "remindersUi": {
+          "remindersValues": [
+            {
+              "method": "popup",
+              "minutes": 10
+            },
+            {
+              "method": "popup",
+              "minutes": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1504,
+        -16
+      ],
+      "id": "c3457de9-b630-4863-af44-a9db4bcb908c",
+      "name": "Application Deadline",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_GOOGLE_CALENDAR_CREDENTIAL_ID",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input JSON example:\n// {\n//   \"test_date\": \"2025-07-23\",\n//   \"test_time\": \"07:00 PM\",\n//   \"last_date_to_apply\": \"2025-08-24\",\n//   \"last_time_to_apply\": \"08:00 PM\",\n//   \"test_name\": \"Meesho Online Test\",\n//   \"event_type\": \"Test\"\n// }\n\nconst eventType = $json.event_type || \"Placement Drive\";\nconst title = $json.company ? `${$json.company} ${eventType}` : eventType;\nconst summary = $json.summary || \"No summary available\";\n\n// Determine which date to use\nlet dateStr = $json.test_date || $json.last_date_to_apply;\nlet timeStr = $json.test_time || $json.last_time_to_apply;\n\nlet startDateTime, endDateTime, startDate, endDate;\n\nif (dateStr) {\n  let [year, month, day] = dateStr.split(\"-\");\n  if (year.length === 2) year = \"20\" + year;\n\n  if (timeStr) {\n    const [hm, ampm] = timeStr.split(\" \");\n    let [h, m] = hm.split(\":\").map(Number);\n    if (ampm?.toUpperCase() === \"PM\" && h !== 12) h += 12;\n    if (ampm?.toUpperCase() === \"AM\" && h === 12) h = 0;\n\n    startDateTime = `${year}-${(\"0\"+month).slice(-2)}-${(\"0\"+day).slice(-2)}T${(\"0\"+h).slice(-2)}:${(\"0\"+m).slice(-2)}:00+05:30`;\n    const endHour = (h + 1) % 24;\n    endDateTime = `${year}-${(\"0\"+month).slice(-2)}-${(\"0\"+day).slice(-2)}T${(\"0\"+endHour).slice(-2)}:${(\"0\"+m).slice(-2)}:00+05:30`;\n  } else {\n    startDate = `${year}-${(\"0\"+month).slice(-2)}-${(\"0\"+day).slice(-2)}`;\n    const jsDate = new Date(`${year}-${month}-${day}T00:00:00`);\n    jsDate.setDate(jsDate.getDate() + 1);\n    const endY = jsDate.getFullYear();\n    const endM = (\"0\"+(jsDate.getMonth()+1)).slice(-2);\n    const endD = (\"0\"+jsDate.getDate()).slice(-2);\n    endDate = `${endY}-${endM}-${endD}`;\n  }\n}\n\nreturn {\n  json: {\n    title,           // e.g., \"Honeywell Test\"\n    summary,\n    eventType,       // Test / PPT / Placement\n    startDateTime,\n    endDateTime,\n    startDate,\n    endDate\n  }\n};\n"
+      },
+      "id": "6f328a64-6088-4351-a307-680df0c83603",
+      "name": "Code1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input JSON example:\n// {\n//   \"test_date\": \"2025-07-23\",\n//   \"test_time\": \"07:00 PM\",\n//   \"last_date_to_apply\": \"2025-08-24\",\n//   \"last_time_to_apply\": \"08:00 PM\",\n//   \"test_name\": \"Meesho Online Test\",\n//   \"event_type\": \"Test\"\n// }\n\nconst eventType = $json.event_type || \"Placement Drive\";\nconst title = $json.company ? `${$json.company} ${eventType}` : eventType;\nconst summary = $json.summary || \"No summary available\";\n\n// Determine which date to use\nlet dateStr = $json.test_date || $json.last_date_to_apply;\nlet timeStr = $json.test_time || $json.last_time_to_apply;\n\nlet startDateTime, endDateTime, startDate, endDate;\n\nif (dateStr) {\n  let [year, month, day] = dateStr.split(\"-\");\n  if (year.length === 2) year = \"20\" + year;\n\n  if (timeStr) {\n    const [hm, ampm] = timeStr.split(\" \");\n    let [h, m] = hour.split(\":\").map(Number);\n    if (ampm?.toUpperCase() === \"PM\" && h !== 12) h += 12;\n    if (ampm?.toUpperCase() === \"AM\" && h === 12) h = 0;\n\n    startDateTime = `${year}-${(\"0\"+month).slice(-2)}-${(\"0\"+day).slice(-2)}T${(\"0\"+h).slice(-2)}:${(\"0\"+m).slice(-2)}:00+05:30`;\n    const endHour = (h + 1) % 24;\n    endDateTime = `${year}-${(\"0\"+month).slice(-2)}-${(\"0\"+day).slice(-2)}T${(\"0\"+endHour).slice(-2)}:${(\"0\"+m).slice(-2)}:00+05:30`;\n  } else {\n    startDate = `${year}-${(\"0\"+month).slice(-2)}-${(\"0\"+day).slice(-2)}`;\n    const jsDate = new Date(`${year}-${month}-${day}T00:00:00`);\n    jsDate.setDate(jsDate.getDate() + 1);\n    const endY = jsDate.getFullYear();\n    const endM = (\"0\"+(jsDate.getMonth()+1)).slice(-2);\n    const endD = (\"0\"+jsDate.getDate()).slice(-2);\n    endDate = `${endY}-${endM}-${endD}`;\n  }\n}\n\nreturn {\n  json: {\n    title,           // e.g., \"Honeywell Test\"\n    summary,\n    eventType,       // Test / PPT / Placement\n    startDateTime,\n    endDateTime,\n    startDate,\n    endDate\n  }\n};\n"
+      },
+      "id": "e630ca06-4bfc-40c6-b03e-726d6a66d6a2",
+      "name": "Code2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        288
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini AI (Extract Info)": {
+      "main": [
+        [
+          {
+            "node": "Parse Gemini Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Gemini Response": {
+      "main": [
+        [
+          {
+            "node": "Switch (by Intent)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch (by Intent)1": {
+      "main": [
+        [
+          {
+            "node": "Notify: New Placement (Telegram)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If Deadline Exists1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PPT Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If Deadline Exists1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Shortlist Notification – Success",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If Deadline Exists1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Other1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Name in Excel2": {
+      "main": [
+        [
+          {
+            "node": "If Name Found?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Name Found?2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Shortlist Notification – Success1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Email Body+Cleaning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Body+Cleaning": {
+      "main": [
+        [
+          {
+            "node": "Gemini AI (Extract Info)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Deadline Exists1": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "If Test/Interview Date Exists1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "PPT Notification": {
+      "main": [
+        []
+      ]
+    },
+    "Notify: New Placement (Telegram)": {
+      "main": [
+        []
+      ]
+    },
+    "Shortlist Notification – Success": {
+      "main": [
+        []
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Test/Interview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Application Deadline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "YOUR_VERSION_ID",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}
